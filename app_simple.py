@@ -839,6 +839,48 @@ def admin_applications():
             cursor.close()
             connection.close()
 
+@app.route('/api/admin/user-profile/<int:user_id>', methods=['GET'])
+def admin_user_profile(user_id):
+    """Get user profile for admin view"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get user profile data
+        cursor.execute("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
+        profile = cursor.fetchone()
+        
+        print(f"Admin fetching profile for user {user_id}: {profile}")  # Debug log
+        
+        if profile:
+            # Convert JSON strings back to lists for skills
+            for skill_field in ['technical_skills', 'soft_skills', 'programming_languages', 
+                              'frameworks', 'database_skills', 'tools']:
+                if profile[skill_field]:
+                    try:
+                        profile[skill_field] = json.loads(profile[skill_field])
+                    except:
+                        profile[skill_field] = []
+                else:
+                    profile[skill_field] = []
+            
+            print(f"Processed profile data: {profile}")  # Debug log
+            return jsonify(profile), 200
+        else:
+            print(f"No profile found for user {user_id}")  # Debug log
+            return jsonify({'error': 'No profile found'}), 404
+        
+    except Error as e:
+        print(f"Database error in admin_user_profile: {e}")  # Debug log
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
 @app.route('/api/apply-job', methods=['POST'])
 def apply_job():
     """Apply for a job"""
@@ -909,6 +951,210 @@ def my_applications():
 def test():
     """Test endpoint"""
     return jsonify({'message': 'Career Platform API is working!', 'status': 'success'}), 200
+
+@app.route('/api/test-profiles', methods=['GET'])
+def test_profiles():
+    """Test endpoint to check user profiles"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get all users
+        cursor.execute("SELECT id, username, email FROM users")
+        users = cursor.fetchall()
+        
+        # Get all profiles
+        cursor.execute("SELECT user_id, first_name, last_name FROM user_profiles")
+        profiles = cursor.fetchall()
+        
+        return jsonify({
+            'users': users,
+            'profiles': profiles,
+            'total_users': len(users),
+            'total_profiles': len(profiles)
+        }), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+# Course Management Endpoints
+@app.route('/api/admin/courses', methods=['GET'])
+def admin_get_courses():
+    """Get all courses for admin"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT c.*, 
+                   COUNT(ucp.user_id) as enrolled_students,
+                   AVG(ucp.progress_percentage) as avg_progress
+            FROM courses c
+            LEFT JOIN user_course_progress ucp ON c.id = ucp.course_id
+            GROUP BY c.id
+            ORDER BY c.created_at DESC
+        """)
+        courses = cursor.fetchall()
+        
+        return jsonify(courses), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/courses', methods=['POST'])
+def admin_create_course():
+    """Create a new course"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['title', 'description', 'provider', 'duration_weeks', 'difficulty_level']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            INSERT INTO courses (title, description, provider, duration_weeks, 
+                               difficulty_level, skills_covered, course_url, price, rating)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data['title'],
+            data['description'],
+            data['provider'],
+            data['duration_weeks'],
+            data['difficulty_level'],
+            data.get('skills_covered', ''),
+            data.get('course_url', ''),
+            data.get('price', 0),
+            data.get('rating', 0)
+        ))
+        
+        connection.commit()
+        course_id = cursor.lastrowid
+        
+        return jsonify({'message': 'Course created successfully', 'course_id': course_id}), 201
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/courses/<int:course_id>', methods=['PUT'])
+def admin_update_course(course_id):
+    """Update a course"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        data = request.get_json()
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            UPDATE courses 
+            SET title = %s, description = %s, provider = %s, duration_weeks = %s,
+                difficulty_level = %s, skills_covered = %s, course_url = %s, 
+                price = %s, rating = %s
+            WHERE id = %s
+        """, (
+            data['title'],
+            data['description'],
+            data['provider'],
+            data['duration_weeks'],
+            data['difficulty_level'],
+            data.get('skills_covered', ''),
+            data.get('course_url', ''),
+            data.get('price', 0),
+            data.get('rating', 0),
+            course_id
+        ))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        connection.commit()
+        return jsonify({'message': 'Course updated successfully'}), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/courses/<int:course_id>', methods=['DELETE'])
+def admin_delete_course(course_id):
+    """Delete a course"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("DELETE FROM courses WHERE id = %s", (course_id,))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        connection.commit()
+        return jsonify({'message': 'Course deleted successfully'}), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/courses/<int:course_id>/enrollments', methods=['GET'])
+def admin_get_course_enrollments(course_id):
+    """Get course enrollments for admin"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT ucp.*, u.username, u.email, up.first_name, up.last_name
+            FROM user_course_progress ucp
+            JOIN users u ON ucp.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE ucp.course_id = %s
+            ORDER BY ucp.started_at DESC
+        """, (course_id,))
+        
+        enrollments = cursor.fetchall()
+        return jsonify(enrollments), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
 if __name__ == '__main__':
     print("🚀 Starting Career Platform...")

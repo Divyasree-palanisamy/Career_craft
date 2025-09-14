@@ -245,11 +245,216 @@ const SubmitButton = styled.button`
   }
 `;
 
+const ProfileView = ({ formData }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
+  const renderSkills = (skills) => {
+    if (!skills || skills.length === 0) return 'None specified';
+    return skills.map((skill, index) => (
+      <span key={index} style={{
+        background: '#dbeafe',
+        color: '#1e40af',
+        padding: '4px 8px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        margin: '2px',
+        display: 'inline-block'
+      }}>
+        {skill}
+      </span>
+    ));
+  };
+
+  return (
+    <div style={{ background: 'white', borderRadius: '16px', padding: '30px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)' }}>
+      {/* Personal Information */}
+      <FormSection>
+        <SectionTitle>
+          <User size={24} />
+          Personal Information
+        </SectionTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div>
+            <strong>Name:</strong> {formData.first_name} {formData.last_name}
+          </div>
+          <div>
+            <strong>Phone:</strong> {formData.phone || 'Not specified'}
+          </div>
+          <div>
+            <strong>Date of Birth:</strong> {formatDate(formData.date_of_birth)}
+          </div>
+          <div>
+            <strong>Gender:</strong> {formData.gender || 'Not specified'}
+          </div>
+          <div>
+            <strong>City:</strong> {formData.city || 'Not specified'}
+          </div>
+          <div>
+            <strong>State:</strong> {formData.state || 'Not specified'}
+          </div>
+          <div>
+            <strong>Country:</strong> {formData.country || 'Not specified'}
+          </div>
+          <div>
+            <strong>Pincode:</strong> {formData.pincode || 'Not specified'}
+          </div>
+        </div>
+        {formData.address && (
+          <div style={{ marginTop: '15px' }}>
+            <strong>Address:</strong> {formData.address}
+          </div>
+        )}
+      </FormSection>
+
+      {/* Academic Information */}
+      <FormSection>
+        <SectionTitle>
+          <GraduationCap size={24} />
+          Academic Information
+        </SectionTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div>
+            <strong>Highest Qualification:</strong> {formData.highest_qualification || 'Not specified'}
+          </div>
+          <div>
+            <strong>Field of Study:</strong> {formData.field_of_study || 'Not specified'}
+          </div>
+          <div>
+            <strong>University/College:</strong> {formData.university || 'Not specified'}
+          </div>
+          <div>
+            <strong>Graduation Year:</strong> {formData.graduation_year || 'Not specified'}
+          </div>
+          <div>
+            <strong>CGPA/Percentage:</strong> {formData.cgpa || 'Not specified'}
+          </div>
+          <div>
+            <strong>Batch/Semester:</strong> {formData.batch_semester || 'Not specified'}
+          </div>
+        </div>
+      </FormSection>
+
+      {/* Skills */}
+      <FormSection>
+        <SectionTitle>
+          <Code size={24} />
+          Skills & Technologies
+        </SectionTitle>
+        <div style={{ display: 'grid', gap: '20px' }}>
+          <div>
+            <strong>Programming Languages:</strong>
+            <div style={{ marginTop: '8px' }}>
+              {renderSkills(formData.programming_languages)}
+            </div>
+          </div>
+          <div>
+            <strong>Frameworks & Libraries:</strong>
+            <div style={{ marginTop: '8px' }}>
+              {renderSkills(formData.frameworks)}
+            </div>
+          </div>
+          <div>
+            <strong>Database Skills:</strong>
+            <div style={{ marginTop: '8px' }}>
+              {renderSkills(formData.database_skills)}
+            </div>
+          </div>
+          <div>
+            <strong>Tools & Technologies:</strong>
+            <div style={{ marginTop: '8px' }}>
+              {renderSkills(formData.tools)}
+            </div>
+          </div>
+        </div>
+      </FormSection>
+
+      {/* Experience */}
+      <FormSection>
+        <SectionTitle>
+          <Briefcase size={24} />
+          Experience & Projects
+        </SectionTitle>
+        <div style={{ display: 'grid', gap: '20px' }}>
+          <div>
+            <strong>Total Experience:</strong> {formData.total_experience || 0} years
+          </div>
+          <div>
+            <strong>Work Mode Preference:</strong> {formData.work_mode || 'Not specified'}
+          </div>
+          {formData.internships && (
+            <div>
+              <strong>Internships:</strong>
+              <p style={{ margin: '8px 0 0 0', color: '#6b7280', lineHeight: '1.5' }}>
+                {formData.internships}
+              </p>
+            </div>
+          )}
+          {formData.projects && (
+            <div>
+              <strong>Projects:</strong>
+              <p style={{ margin: '8px 0 0 0', color: '#6b7280', lineHeight: '1.5' }}>
+                {formData.projects}
+              </p>
+            </div>
+          )}
+          {formData.certifications && (
+            <div>
+              <strong>Certifications:</strong>
+              <p style={{ margin: '8px 0 0 0', color: '#6b7280', lineHeight: '1.5' }}>
+                {formData.certifications}
+              </p>
+            </div>
+          )}
+        </div>
+      </FormSection>
+
+      {/* Career Preferences */}
+      <FormSection>
+        <SectionTitle>
+          <Heart size={24} />
+          Career Preferences
+        </SectionTitle>
+        <div style={{ display: 'grid', gap: '20px' }}>
+          {formData.career_interests && (
+            <div>
+              <strong>Career Interests:</strong>
+              <p style={{ margin: '8px 0 0 0', color: '#6b7280', lineHeight: '1.5' }}>
+                {formData.career_interests}
+              </p>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <strong>Preferred Locations:</strong> {formData.preferred_locations || 'Not specified'}
+            </div>
+            <div>
+              <strong>Salary Expectation:</strong> {formData.salary_expectation ? `${formData.salary_expectation} LPA` : 'Not specified'}
+            </div>
+          </div>
+          {formData.tech_stack && (
+            <div>
+              <strong>Tech Stack Interest:</strong>
+              <p style={{ margin: '8px 0 0 0', color: '#6b7280', lineHeight: '1.5' }}>
+                {formData.tech_stack}
+              </p>
+            </div>
+          )}
+        </div>
+      </FormSection>
+    </div>
+  );
+};
+
 const ProfileFormComponent = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [viewMode, setViewMode] = useState(false);
   const [formData, setFormData] = useState({
     // Personal Information
     first_name: '',
@@ -315,7 +520,25 @@ const ProfileFormComponent = () => {
         withCredentials: true
       });
       if (response.data) {
-        setFormData(response.data);
+        // Format date_of_birth for input field and ensure arrays are properly initialized
+        const profileData = { ...response.data };
+        if (profileData.date_of_birth) {
+          // Convert date to YYYY-MM-DD format for input field
+          const date = new Date(profileData.date_of_birth);
+          if (!isNaN(date.getTime())) {
+            profileData.date_of_birth = date.toISOString().split('T')[0];
+          }
+        }
+
+        // Ensure all skill arrays are properly initialized
+        const skillFields = ['technical_skills', 'soft_skills', 'programming_languages', 'frameworks', 'database_skills', 'tools'];
+        skillFields.forEach(field => {
+          if (!Array.isArray(profileData[field])) {
+            profileData[field] = [];
+          }
+        });
+
+        setFormData(profileData);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -378,6 +601,9 @@ const ProfileFormComponent = () => {
         text: 'Your profile has been updated successfully. Redirecting to dashboard...'
       });
 
+      // Reload profile data to ensure form shows updated data
+      await loadProfileData();
+
       // Redirect to dashboard after successful submission
       setTimeout(() => {
         navigate('/dashboard');
@@ -403,13 +629,38 @@ const ProfileFormComponent = () => {
       </BackButton>
 
       <ProfileHeader>
-        <ProfileTitle>Complete Your Profile</ProfileTitle>
+        <ProfileTitle>
+          {viewMode ? 'View Your Profile' : 'Complete Your Profile'}
+        </ProfileTitle>
         <ProfileSubtitle>
-          Help us understand your background to provide personalized recommendations
+          {viewMode 
+            ? 'Review your profile information' 
+            : 'Help us understand your background to provide personalized recommendations'
+          }
         </ProfileSubtitle>
+        <div style={{ marginTop: '20px' }}>
+          <button
+            onClick={() => setViewMode(!viewMode)}
+            style={{
+              background: viewMode ? '#667eea' : '#f8f9fa',
+              color: viewMode ? 'white' : '#495057',
+              border: '1px solid #dee2e6',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '500',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            {viewMode ? 'Edit Profile' : 'View Profile'}
+          </button>
+        </div>
       </ProfileHeader>
 
-      <ProfileForm onSubmit={handleSubmit}>
+      {viewMode ? (
+        <ProfileView formData={formData} />
+      ) : (
+        <ProfileForm onSubmit={handleSubmit}>
         {/* Personal Information */}
         <FormSection>
           <SectionTitle>
@@ -722,7 +973,7 @@ const ProfileFormComponent = () => {
 
           <FormRow>
             <FormGroup>
-              <FormLabel>Total Experience (Years)</FormLabel>
+              <FormLabel>Total Experience (Years) - Optional</FormLabel>
               <FormInput
                 type="number"
                 name="total_experience"
@@ -730,6 +981,7 @@ const ProfileFormComponent = () => {
                 onChange={handleInputChange}
                 min="0"
                 max="50"
+                placeholder="Enter years of experience (optional)"
               />
             </FormGroup>
             <FormGroup>
@@ -748,22 +1000,22 @@ const ProfileFormComponent = () => {
           </FormRow>
 
           <FormGroup>
-            <FormLabel>Internships</FormLabel>
+            <FormLabel>Internships - Optional</FormLabel>
             <FormTextarea
               name="internships"
               value={formData.internships}
               onChange={handleInputChange}
-              placeholder="Describe your internship experiences"
+              placeholder="Describe your internship experiences (optional)"
             />
           </FormGroup>
 
           <FormGroup>
-            <FormLabel>Projects</FormLabel>
+            <FormLabel>Projects - Optional</FormLabel>
             <FormTextarea
               name="projects"
               value={formData.projects}
               onChange={handleInputChange}
-              placeholder="Describe your key projects and achievements"
+              placeholder="Describe your key projects and achievements (optional)"
             />
           </FormGroup>
 
@@ -833,7 +1085,8 @@ const ProfileFormComponent = () => {
           <Save size={20} />
           {loading ? 'Saving Profile...' : 'Save Profile & Get Recommendations'}
         </SubmitButton>
-      </ProfileForm>
+        </ProfileForm>
+      )}
 
       {message && (
         <MessageBox

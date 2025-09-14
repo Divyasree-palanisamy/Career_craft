@@ -661,26 +661,27 @@ const ResumeBuilder = () => {
 
   const loadResume = (resume) => {
     // Ensure proper data structure with defaults
+    const resumeData = resume.resume_data || resume;
     const loadedData = {
       personalInfo: {
-        firstName: resume.personalInfo?.firstName || '',
-        lastName: resume.personalInfo?.lastName || '',
-        email: resume.personalInfo?.email || '',
-        phone: resume.personalInfo?.phone || '',
-        address: resume.personalInfo?.address || '',
-        city: resume.personalInfo?.city || '',
-        state: resume.personalInfo?.state || '',
-        pincode: resume.personalInfo?.pincode || ''
+        firstName: resumeData.personalInfo?.firstName || '',
+        lastName: resumeData.personalInfo?.lastName || '',
+        email: resumeData.personalInfo?.email || '',
+        phone: resumeData.personalInfo?.phone || '',
+        address: resumeData.personalInfo?.address || '',
+        city: resumeData.personalInfo?.city || '',
+        state: resumeData.personalInfo?.state || '',
+        pincode: resumeData.personalInfo?.pincode || ''
       },
-      summary: resume.summary || '',
-      experience: resume.experience || [],
-      education: resume.education || [],
+      summary: resumeData.summary || '',
+      experience: resumeData.experience || [],
+      education: resumeData.education || [],
       skills: {
-        technical: resume.skills?.technical || [],
-        soft: resume.skills?.soft || []
+        technical: resumeData.skills?.technical || [],
+        soft: resumeData.skills?.soft || []
       },
-      projects: resume.projects || [],
-      certifications: resume.certifications || []
+      projects: resumeData.projects || [],
+      certifications: resumeData.certifications || []
     };
 
     setResumeData(loadedData);
@@ -847,13 +848,13 @@ const ResumeBuilder = () => {
                 }}>
                   <div>
                     <h4 style={{ margin: '0 0 4px 0', color: '#1f2937' }}>
-                      {resume.name || `Resume ${index + 1}`}
+                      {resume.resume_name || resume.name || `Resume ${index + 1}`}
                     </h4>
                     <p style={{ margin: '0', color: '#6b7280', fontSize: '0.9rem' }}>
-                      {resume.personalInfo?.firstName} {resume.personalInfo?.lastName}
+                      {resume.resume_data?.personalInfo?.firstName || resume.personalInfo?.firstName} {resume.resume_data?.personalInfo?.lastName || resume.personalInfo?.lastName}
                     </p>
                     <p style={{ margin: '0', color: '#6b7280', fontSize: '0.8rem' }}>
-                      Saved: {resume.savedAt ? new Date(resume.savedAt).toLocaleDateString() : 'Unknown Date'}
+                      Saved: {resume.created_at ? new Date(resume.created_at).toLocaleDateString() : 'Unknown Date'}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>

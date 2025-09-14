@@ -238,32 +238,79 @@ const Dashboard = () => {
   };
 
   const calculateProfileCompletion = (profile) => {
-    const fields = [
-      'first_name', 'last_name', 'phone', 'date_of_birth', 'gender',
-      'address', 'city', 'state', 'country', 'pincode',
-      'highest_qualification', 'university', 'graduation_year', 'cgpa', 'field_of_study',
-      'technical_skills', 'soft_skills', 'programming_languages', 'frameworks', 'databases', 'tools',
-      'total_experience', 'internships', 'projects', 'certifications',
-      'career_interests', 'preferred_locations', 'salary_expectation', 'work_mode',
+    // Required fields (higher weight)
+    const requiredFields = [
+      'first_name', 'last_name', 'highest_qualification'
+    ];
+    
+    // Important fields (medium weight) - removed 'email' as it's not in profile data
+    const importantFields = [
+      'phone', 'university', 'field_of_study', 'graduation_year',
+      'programming_languages', 'frameworks', 'database_skills', 'tools',
+      'career_interests', 'preferred_locations', 'work_mode'
+    ];
+    
+    // Optional fields (lower weight)
+    const optionalFields = [
+      'date_of_birth', 'gender', 'address', 'city', 'state', 'country', 'pincode',
+      'cgpa', 'technical_skills', 'soft_skills', 'total_experience', 
+      'internships', 'projects', 'certifications', 'salary_expectation',
       'tech_stack', 'batch_semester'
     ];
 
-    let completedFields = 0;
-    fields.forEach(field => {
+    let score = 0;
+    let maxScore = 0;
+
+    // Calculate required fields score (40% of total)
+    maxScore += requiredFields.length * 4;
+    requiredFields.forEach(field => {
       const value = profile[field];
       if (value !== null && value !== undefined && value !== '') {
-        // For array fields, check if they have content
+        score += 4;
+      }
+    });
+
+    // Calculate important fields score (40% of total)
+    maxScore += importantFields.length * 2;
+    importantFields.forEach(field => {
+      const value = profile[field];
+      if (value !== null && value !== undefined && value !== '') {
         if (Array.isArray(value)) {
           if (value.length > 0) {
-            completedFields++;
+            score += 2;
           }
         } else {
-          completedFields++;
+          score += 2;
         }
       }
     });
 
-    return Math.round((completedFields / fields.length) * 100);
+    // Calculate optional fields score (20% of total)
+    maxScore += optionalFields.length * 1;
+    optionalFields.forEach(field => {
+      const value = profile[field];
+      if (value !== null && value !== undefined && value !== '') {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            score += 1;
+          }
+        } else {
+          score += 1;
+        }
+      }
+    });
+
+    // Debug logging
+    console.log('Profile completion calculation:', {
+      score,
+      maxScore,
+      percentage: Math.round((score / maxScore) * 100),
+      requiredFields: requiredFields.map(field => ({ field, value: profile[field], hasValue: profile[field] !== null && profile[field] !== undefined && profile[field] !== '' })),
+      importantFields: importantFields.map(field => ({ field, value: profile[field], hasValue: profile[field] !== null && profile[field] !== undefined && profile[field] !== '' })),
+      optionalFields: optionalFields.map(field => ({ field, value: profile[field], hasValue: profile[field] !== null && profile[field] !== undefined && profile[field] !== '' }))
+    });
+
+    return Math.min(Math.round((score / maxScore) * 100), 100);
   };
 
   const handleLogout = async () => {
