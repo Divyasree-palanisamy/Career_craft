@@ -108,7 +108,7 @@ def init_database():
                 soft_skills TEXT,
                 programming_languages TEXT,
                 frameworks TEXT,
-                databases TEXT,
+                database_skills TEXT,
                 tools TEXT,
                 
                 -- Experience
@@ -471,7 +471,7 @@ def profile():
             if profile:
                 # Convert JSON strings back to lists for skills
                 for skill_field in ['technical_skills', 'soft_skills', 'programming_languages', 
-                                  'frameworks', 'databases', 'tools']:
+                                  'frameworks', 'database_skills', 'tools']:
                     if profile[skill_field]:
                         try:
                             profile[skill_field] = json.loads(profile[skill_field])
@@ -538,7 +538,7 @@ def profile():
                         soft_skills TEXT,
                         programming_languages TEXT,
                         frameworks TEXT,
-                        databases TEXT,
+                        database_skills TEXT,
                         tools TEXT,
                         total_experience INT DEFAULT 0,
                         internships TEXT,
@@ -641,8 +641,8 @@ def generate_recommendations(user_id):
             user_skills.extend(json.loads(profile['programming_languages']))
         if profile['frameworks']:
             user_skills.extend(json.loads(profile['frameworks']))
-        if profile['databases']:
-            user_skills.extend(json.loads(profile['databases']))
+        if profile['database_skills']:
+            user_skills.extend(json.loads(profile['database_skills']))
         if profile['tools']:
             user_skills.extend(json.loads(profile['tools']))
         
