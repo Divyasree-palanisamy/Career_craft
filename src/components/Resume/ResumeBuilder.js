@@ -455,6 +455,7 @@ const ResumeBuilder = () => {
 
   useEffect(() => {
     loadResumeData();
+    loadSavedResumes();
   }, []);
 
   const loadResumeData = async () => {
@@ -498,7 +499,7 @@ const ResumeBuilder = () => {
             technical: [
               ...(profile.programming_languages ? JSON.parse(profile.programming_languages) : []),
               ...(profile.frameworks ? JSON.parse(profile.frameworks) : []),
-              ...(profile.databases ? JSON.parse(profile.databases) : []),
+              ...(profile.database_skills ? JSON.parse(profile.database_skills) : []),
               ...(profile.tools ? JSON.parse(profile.tools) : [])
             ],
             soft: profile.soft_skills ? JSON.parse(profile.soft_skills) : []
@@ -515,9 +516,48 @@ const ResumeBuilder = () => {
             description: profile.certifications
           }] : []
         });
+      } else {
+        // If no profile data, ensure we have the default structure
+        setResumeData({
+          personalInfo: {
+            firstName: '',
+            lastName: '',
+            email: user?.email || '',
+            phone: '',
+            address: '',
+            city: '',
+            state: '',
+            pincode: ''
+          },
+          summary: '',
+          experience: [],
+          education: [],
+          skills: {
+            technical: [],
+            soft: []
+          },
+          projects: [],
+          certifications: []
+        });
       }
     } catch (error) {
       console.error('Error loading resume data:', error);
+    }
+  };
+
+  const loadSavedResumes = async () => {
+    try {
+      const response = await axios.get('/api/resume', {
+        withCredentials: true
+      });
+      if (response.data && response.data.resumes) {
+        setSavedResumes(response.data.resumes);
+      } else {
+        setSavedResumes([]);
+      }
+    } catch (error) {
+      console.error('Error loading saved resumes:', error);
+      setSavedResumes([]);
     }
   };
 
@@ -588,6 +628,84 @@ const ResumeBuilder = () => {
     }));
   };
 
+  const saveResume = async () => {
+    if (!resumeName.trim()) {
+      alert('Please enter a resume name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const resumeToSave = {
+        ...resumeData,
+        name: resumeName,
+        savedAt: new Date().toLocaleDateString()
+      };
+
+      await axios.post('/api/resume', resumeToSave, {
+        withCredentials: true
+      });
+
+      setShowSaveModal(false);
+      setResumeName('');
+      await loadSavedResumes(); // Reload saved resumes
+
+      alert('Resume saved successfully!');
+    } catch (error) {
+      console.error('Error saving resume:', error);
+      alert('Failed to save resume');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadResume = (resume) => {
+    // Ensure proper data structure with defaults
+    const loadedData = {
+      personalInfo: {
+        firstName: resume.personalInfo?.firstName || '',
+        lastName: resume.personalInfo?.lastName || '',
+        email: resume.personalInfo?.email || '',
+        phone: resume.personalInfo?.phone || '',
+        address: resume.personalInfo?.address || '',
+        city: resume.personalInfo?.city || '',
+        state: resume.personalInfo?.state || '',
+        pincode: resume.personalInfo?.pincode || ''
+      },
+      summary: resume.summary || '',
+      experience: resume.experience || [],
+      education: resume.education || [],
+      skills: {
+        technical: resume.skills?.technical || [],
+        soft: resume.skills?.soft || []
+      },
+      projects: resume.projects || [],
+      certifications: resume.certifications || []
+    };
+
+    setResumeData(loadedData);
+    setShowSavedResumes(false);
+    setEditing(true);
+  };
+
+  const deleteResume = async (resumeId) => {
+    if (!window.confirm('Are you sure you want to delete this resume?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/resume?id=${resumeId}`, {
+        withCredentials: true
+      });
+
+      await loadSavedResumes(); // Reload saved resumes
+      alert('Resume deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting resume:', error);
+      alert('Failed to delete resume');
+    }
+  };
+
   const generatePDF = async () => {
     if (!resumeRef.current) return;
 
@@ -629,76 +747,11 @@ const ResumeBuilder = () => {
     }
   };
 
-  const saveResume = async () => {
-    if (!resumeName.trim()) {
-      toast.error('Please enter a resume name');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const resumeToSave = {
-        ...resumeData,
-        name: resumeName.trim(),
-        savedAt: new Date().toISOString()
-      };
-
-      // Save resume data to backend
-      await axios.post('/api/resume', resumeToSave, {
-        withCredentials: true
-      });
-
-      // Add to local saved resumes
-      setSavedResumes(prev => [...prev, resumeToSave]);
-      toast.success('Resume saved successfully!');
-      setEditing(false);
-      setShowSaveModal(false);
-      setResumeName('');
-    } catch (error) {
-      console.error('Error saving resume:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
-      toast.error(`Failed to save resume: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSaveClick = () => {
     setResumeName(`Resume_${Date.now()}`);
     setShowSaveModal(true);
   };
 
-  const loadSavedResumes = async () => {
-    try {
-      // Load saved resumes from backend
-      const response = await axios.get('/api/resume', {
-        withCredentials: true
-      });
-      setSavedResumes(response.data || []);
-    } catch (error) {
-      console.error('Error loading saved resumes:', error);
-    }
-  };
-
-  const loadResume = (resume) => {
-    setResumeData(resume);
-    setShowSavedResumes(false);
-    setEditing(false);
-    toast.success('Resume loaded successfully!');
-  };
-
-  const deleteResume = async (resumeId) => {
-    try {
-      await axios.delete(`/api/resume/${resumeId}`, {
-        withCredentials: true
-      });
-      setSavedResumes(prev => prev.filter(r => r.id !== resumeId));
-      toast.success('Resume deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting resume:', error);
-      toast.error('Failed to delete resume');
-    }
-  };
 
   const uploadResume = (event) => {
     const file = event.target.files[0];
@@ -777,7 +830,7 @@ const ResumeBuilder = () => {
             <FileText size={20} />
             Saved Resumes
           </ResumeSectionTitle>
-          {savedResumes.length === 0 ? (
+          {!savedResumes || savedResumes.length === 0 ? (
             <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>
               No saved resumes found. Create and save your first resume!
             </p>
@@ -800,7 +853,7 @@ const ResumeBuilder = () => {
                       {resume.personalInfo?.firstName} {resume.personalInfo?.lastName}
                     </p>
                     <p style={{ margin: '0', color: '#6b7280', fontSize: '0.8rem' }}>
-                      Saved: {new Date(resume.savedAt).toLocaleDateString()}
+                      Saved: {resume.savedAt ? new Date(resume.savedAt).toLocaleDateString() : 'Unknown Date'}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -839,7 +892,7 @@ const ResumeBuilder = () => {
               <FormLabel>First Name</FormLabel>
               <FormInput
                 type="text"
-                value={resumeData.personalInfo.firstName}
+                value={resumeData.personalInfo?.firstName || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'firstName', e.target.value)}
               />
             </FormGroup>
@@ -847,7 +900,7 @@ const ResumeBuilder = () => {
               <FormLabel>Last Name</FormLabel>
               <FormInput
                 type="text"
-                value={resumeData.personalInfo.lastName}
+                value={resumeData.personalInfo?.lastName || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'lastName', e.target.value)}
               />
             </FormGroup>
@@ -858,7 +911,7 @@ const ResumeBuilder = () => {
               <FormLabel>Email</FormLabel>
               <FormInput
                 type="email"
-                value={resumeData.personalInfo.email}
+                value={resumeData.personalInfo?.email || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
               />
             </FormGroup>
@@ -866,7 +919,7 @@ const ResumeBuilder = () => {
               <FormLabel>Phone</FormLabel>
               <FormInput
                 type="tel"
-                value={resumeData.personalInfo.phone}
+                value={resumeData.personalInfo?.phone || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)}
               />
             </FormGroup>
@@ -876,7 +929,7 @@ const ResumeBuilder = () => {
             <FormLabel>Address</FormLabel>
             <FormInput
               type="text"
-              value={resumeData.personalInfo.address}
+              value={resumeData.personalInfo?.address || ''}
               onChange={(e) => handleInputChange('personalInfo', 'address', e.target.value)}
             />
           </FormGroup>
@@ -886,7 +939,7 @@ const ResumeBuilder = () => {
               <FormLabel>City</FormLabel>
               <FormInput
                 type="text"
-                value={resumeData.personalInfo.city}
+                value={resumeData.personalInfo?.city || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'city', e.target.value)}
               />
             </FormGroup>
@@ -894,7 +947,7 @@ const ResumeBuilder = () => {
               <FormLabel>State</FormLabel>
               <FormInput
                 type="text"
-                value={resumeData.personalInfo.state}
+                value={resumeData.personalInfo?.state || ''}
                 onChange={(e) => handleInputChange('personalInfo', 'state', e.target.value)}
               />
             </FormGroup>
@@ -1082,17 +1135,17 @@ const ResumeBuilder = () => {
         <ResumePreview ref={resumeRef}>
           <ResumeHeaderSection>
             <ResumeName>
-              {resumeData.personalInfo.firstName} {resumeData.personalInfo.lastName}
+              {resumeData.personalInfo?.firstName || ''} {resumeData.personalInfo?.lastName || ''}
             </ResumeName>
             <ResumeContact>
-              {resumeData.personalInfo.email && (
+              {resumeData.personalInfo?.email && (
                 <span><Mail size={16} /> {resumeData.personalInfo.email}</span>
               )}
-              {resumeData.personalInfo.phone && (
+              {resumeData.personalInfo?.phone && (
                 <span><Phone size={16} /> {resumeData.personalInfo.phone}</span>
               )}
-              {(resumeData.personalInfo.city || resumeData.personalInfo.state) && (
-                <span><MapPin size={16} /> {resumeData.personalInfo.city}, {resumeData.personalInfo.state}</span>
+              {(resumeData.personalInfo?.city || resumeData.personalInfo?.state) && (
+                <span><MapPin size={16} /> {resumeData.personalInfo?.city || ''}, {resumeData.personalInfo?.state || ''}</span>
               )}
             </ResumeContact>
           </ResumeHeaderSection>

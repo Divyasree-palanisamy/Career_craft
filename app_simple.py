@@ -96,7 +96,7 @@ def init_database():
                 soft_skills TEXT,
                 programming_languages TEXT,
                 frameworks TEXT,
-                databases TEXT,
+                database_skills TEXT,
                 tools TEXT,
                 
                 -- Experience
@@ -257,7 +257,7 @@ def register():
             return jsonify({'error': 'All fields are required'}), 400
         
         # Hash password
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         connection = get_db_connection()
         if not connection:
@@ -370,7 +370,7 @@ def check_auth():
 @app.route('/api/admin/users', methods=['GET'])
 def admin_users():
     """Get all users for admin"""
-    if not check_admin_auth():
+    if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'error': 'Admin authentication required'}), 401
     
     try:
@@ -378,7 +378,7 @@ def admin_users():
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC")
         users = cursor.fetchall()
-        return jsonify({'users': users})
+        return jsonify({'users': users}), 200
     except Error as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -386,30 +386,141 @@ def admin_users():
             cursor.close()
             connection.close()
 
-@app.route('/api/admin/applications', methods=['GET'])
-def admin_applications():
-    """Get all job applications for admin"""
-    if not check_admin_auth():
-        return jsonify({'error': 'Admin authentication required'}), 401
+
+@app.route('/api/profile', methods=['GET', 'POST', 'PUT'])
+def profile():
+    """Get or update user profile"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
     
-    try:
+    user_id = session['user_id']
+    
+    if request.method == 'GET':
+        # Get user profile
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT ja.*, u.username as user_name, j.title as job_title, j.company
-            FROM job_applications ja
-            JOIN users u ON ja.user_id = u.id
-            JOIN jobs j ON ja.job_id = j.id
-            ORDER BY ja.applied_at DESC
-        """)
-        applications = cursor.fetchall()
-        return jsonify({'applications': applications})
-    except Error as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
+            profile = cursor.fetchone()
+            
+            if profile:
+                # Convert JSON strings back to lists for skills
+                for skill_field in ['technical_skills', 'soft_skills', 'programming_languages', 
+                                  'frameworks', 'database_skills', 'tools']:
+                    if profile[skill_field]:
+                        try:
+                            profile[skill_field] = json.loads(profile[skill_field])
+                        except:
+                            profile[skill_field] = []
+                    else:
+                        profile[skill_field] = []
+                
+                return jsonify(profile), 200
+            else:
+                return jsonify({'message': 'Profile not found'}), 404
+                
+        except Error as e:
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+    
+    elif request.method in ['POST', 'PUT']:
+        # Create or update user profile
+        data = request.get_json()
+        
+        # Handle empty date values
+        if 'date_of_birth' in data and data['date_of_birth'] == '':
+            data['date_of_birth'] = None
+        
+        # Handle empty numeric values
+        if 'graduation_year' in data and data['graduation_year'] == '':
+            data['graduation_year'] = None
+        
+        if 'salary_expectation' in data and data['salary_expectation'] == '':
+            data['salary_expectation'] = None
+        
+        if 'total_experience' in data and data['total_experience'] == '':
+            data['total_experience'] = 0
+        
+        # Handle work_mode enum validation
+        if 'work_mode' in data and data['work_mode'] not in ['Remote', 'On-site', 'Hybrid']:
+            data['work_mode'] = None
+        
+        # Handle gender enum validation
+        if 'gender' in data and data['gender'] not in ['Male', 'Female', 'Other']:
+            data['gender'] = None
+        
+        # Handle batch_semester length validation
+        if 'batch_semester' in data and data['batch_semester']:
+            if len(str(data['batch_semester'])) > 20:
+                data['batch_semester'] = str(data['batch_semester'])[:20]
+        
+        # Remove any datetime fields that might cause issues
+        datetime_fields = ['created_at', 'updated_at', 'savedAt']
+        for field in datetime_fields:
+            if field in data:
+                del data[field]
+        
+        # Convert skills lists to JSON strings
+        for skill_field in ['technical_skills', 'soft_skills', 'programming_languages', 
+                          'frameworks', 'database_skills', 'tools']:
+            if skill_field in data and isinstance(data[skill_field], list):
+                data[skill_field] = json.dumps(data[skill_field])
+        
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        try:
+            cursor = connection.cursor()
+            
+            # Check if profile exists
+            cursor.execute("SELECT id FROM user_profiles WHERE user_id = %s", (user_id,))
+            existing_profile = cursor.fetchone()
+            
+            if existing_profile:
+                # Update existing profile
+                update_fields = []
+                values = []
+                
+                for key, value in data.items():
+                    if key != 'user_id':  # Don't update user_id
+                        # Skip None values for optional fields
+                        if value is not None:
+                            update_fields.append(f"{key} = %s")
+                            values.append(value)
+                
+                if update_fields:
+                    values.append(user_id)
+                    query = f"UPDATE user_profiles SET {', '.join(update_fields)} WHERE user_id = %s"
+                    cursor.execute(query, values)
+            else:
+                # Create new profile - only include non-None values
+                filtered_data = {k: v for k, v in data.items() if v is not None}
+                filtered_data['user_id'] = user_id
+                
+                fields = list(filtered_data.keys())
+                placeholders = ['%s'] * len(fields)
+                values = list(filtered_data.values())
+                
+                query = f"INSERT INTO user_profiles ({', '.join(fields)}) VALUES ({', '.join(placeholders)})"
+                cursor.execute(query, values)
+            
+            connection.commit()
+            return jsonify({'message': 'Profile updated successfully'}), 200
+            
+        except Error as e:
+            print(f"Database error in profile update: {str(e)}")  # Debug log
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
+        finally:
+            if connection and connection.is_connected():
+                cursor.close()
+                connection.close()
 
 @app.route('/api/courses', methods=['GET'])
 def get_courses():
@@ -417,11 +528,153 @@ def get_courses():
     try:
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM courses ORDER BY created_at DESC")
+        cursor.execute("SELECT * FROM courses ORDER BY rating DESC")
         courses = cursor.fetchall()
-        return jsonify({'courses': courses})
+        
+        # Format courses for frontend
+        formatted_courses = []
+        for course in courses:
+            formatted_course = {
+                'id': course['id'],
+                'title': course['title'],
+                'description': course['description'],
+                'provider': course['provider'],
+                'level': course['difficulty_level'],
+                'duration': f"{course['duration_weeks']} weeks",
+                'rating': float(course['rating']) if course['rating'] else 0,
+                'students': 1000 + (course['id'] * 500),  # Mock student count
+                'skills': course['skills_covered'].split(', ') if course['skills_covered'] else [],
+                'link': course['course_url'],
+                'price': 'Free' if course['price'] == 0 else f"₹{course['price']}"
+            }
+            formatted_courses.append(formatted_course)
+        
+        return jsonify({'courses': formatted_courses}), 200
     except Error as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/course/<int:course_id>', methods=['GET'])
+def get_course_details(course_id):
+    """Get specific course details"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM courses WHERE id = %s", (course_id,))
+        course = cursor.fetchone()
+        
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        # Format course for frontend
+        formatted_course = {
+            'id': course['id'],
+            'title': course['title'],
+            'description': course['description'],
+            'provider': course['provider'],
+            'duration': course['duration_weeks'],
+            'level': course['difficulty_level'],
+            'skills': course['skills_covered'].split(', ') if course['skills_covered'] else [],
+            'link': course['course_url'],
+            'price': course['price'],
+            'rating': course['rating'],
+            'content': f"""
+            <h2>{course['title']}</h2>
+            <p><strong>Provider:</strong> {course['provider']}</p>
+            <p><strong>Duration:</strong> {course['duration_weeks']} weeks</p>
+            <p><strong>Level:</strong> {course['difficulty_level']}</p>
+            <p><strong>Skills Covered:</strong> {course['skills_covered']}</p>
+            <p><strong>Description:</strong></p>
+            <p>{course['description']}</p>
+            <p><strong>Course Link:</strong> <a href="{course['course_url']}" target="_blank">Start Course</a></p>
+            """
+        }
+        
+        return jsonify({'course': formatted_course}), 200
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/courses', methods=['GET', 'POST'])
+def admin_courses():
+    """Admin course management"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        if request.method == 'GET':
+            cursor.execute("SELECT * FROM courses ORDER BY created_at DESC")
+            courses = cursor.fetchall()
+            return jsonify({'courses': courses}), 200
+        
+        elif request.method == 'POST':
+            data = request.get_json()
+            
+            required_fields = ['title', 'description', 'provider']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'{field} is required'}), 400
+            
+            cursor.execute("""
+                INSERT INTO courses (title, description, provider, duration_weeks, difficulty_level, 
+                                   skills_covered, course_url, price, rating)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                data['title'], data['description'], data['provider'],
+                data.get('duration_weeks', 0), data.get('difficulty_level', 'Beginner'),
+                data.get('skills_covered', ''), data.get('course_url', ''),
+                data.get('price', 0), data.get('rating', 0)
+            ))
+            
+            connection.commit()
+            return jsonify({'message': 'Course created successfully'}), 201
+            
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/job-recommendations', methods=['GET'])
+def get_job_recommendations():
+    """Get job recommendations for the authenticated user"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get all active jobs
+        cursor.execute("SELECT * FROM jobs WHERE status = 'Active' ORDER BY created_at DESC")
+        jobs = cursor.fetchall()
+        
+        # Convert to list and add applied flag
+        jobs_list = []
+        for job in jobs:
+            job_dict = dict(job)
+            job_dict['applied'] = False  # Default to not applied
+            jobs_list.append(job_dict)
+        
+        return jsonify({'jobs': jobs_list}), 200
+        
+    except Error as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
     finally:
         if connection.is_connected():
             cursor.close()
@@ -430,7 +683,7 @@ def get_courses():
 @app.route('/api/resume', methods=['GET', 'POST', 'DELETE'])
 def resume_management():
     """Resume management endpoints"""
-    if not check_auth():
+    if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
     
     if request.method == 'GET':
@@ -439,7 +692,16 @@ def resume_management():
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT * FROM user_resumes WHERE user_id = %s ORDER BY created_at DESC", (session['user_id'],))
             resumes = cursor.fetchall()
-            return jsonify({'resumes': resumes})
+            
+            # Parse resume data for each resume
+            for resume in resumes:
+                if resume['resume_data']:
+                    try:
+                        resume['resume_data'] = json.loads(resume['resume_data'])
+                    except:
+                        resume['resume_data'] = {}
+                        
+            return jsonify({'resumes': resumes}), 200
         except Error as e:
             return jsonify({'error': str(e)}), 500
         finally:
@@ -466,6 +728,182 @@ def resume_management():
             if connection.is_connected():
                 cursor.close()
                 connection.close()
+
+@app.route('/api/admin/jobs', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def admin_jobs():
+    """Admin job management"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        if request.method == 'GET':
+            cursor.execute("SELECT * FROM jobs ORDER BY created_at DESC")
+            jobs = cursor.fetchall()
+            return jsonify({'jobs': jobs}), 200
+        
+        elif request.method == 'POST':
+            data = request.get_json()
+            
+            required_fields = ['title', 'company', 'description']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'{field} is required'}), 400
+            
+            cursor.execute("""
+                INSERT INTO jobs (title, company, location, job_type, experience_required, 
+                                salary_min, salary_max, description, requirements, skills_required, 
+                                benefits, application_deadline, status, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                data['title'], data.get('company', ''), data.get('location', ''),
+                data.get('job_type', 'Full-time'), data.get('experience_required', 0),
+                data.get('salary_min'), data.get('salary_max'), data['description'],
+                data.get('requirements', ''), data.get('skills_required', ''),
+                data.get('benefits', ''), data.get('application_deadline'),
+                data.get('status', 'Active'), session['user_id']
+            ))
+            
+            connection.commit()
+            return jsonify({'message': 'Job created successfully'}), 201
+        
+        elif request.method == 'PUT':
+            data = request.get_json()
+            job_id = data.get('id')
+            
+            if not job_id:
+                return jsonify({'error': 'Job ID is required'}), 400
+            
+            cursor.execute("""
+                UPDATE jobs SET title=%s, company=%s, location=%s, job_type=%s,
+                              experience_required=%s, salary_min=%s, salary_max=%s,
+                              description=%s, requirements=%s, skills_required=%s,
+                              benefits=%s, application_deadline=%s, status=%s
+                WHERE id=%s
+            """, (
+                data['title'], data.get('company', ''), data.get('location', ''),
+                data.get('job_type', 'Full-time'), data.get('experience_required', 0),
+                data.get('salary_min'), data.get('salary_max'), data['description'],
+                data.get('requirements', ''), data.get('skills_required', ''),
+                data.get('benefits', ''), data.get('application_deadline'),
+                data.get('status', 'Active'), job_id
+            ))
+            
+            connection.commit()
+            return jsonify({'message': 'Job updated successfully'}), 200
+        
+        elif request.method == 'DELETE':
+            job_id = request.args.get('id')
+            
+            if not job_id:
+                return jsonify({'error': 'Job ID is required'}), 400
+            
+            cursor.execute("DELETE FROM jobs WHERE id=%s", (job_id,))
+            connection.commit()
+            return jsonify({'message': 'Job deleted successfully'}), 200
+            
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/admin/applications', methods=['GET'])
+def admin_applications():
+    """Admin job applications management"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT ja.*, u.username, u.email, j.title as job_title, j.company
+            FROM job_applications ja
+            JOIN users u ON ja.user_id = u.id
+            JOIN jobs j ON ja.job_id = j.id
+            ORDER BY ja.applied_at DESC
+        """)
+        applications = cursor.fetchall()
+        
+        return jsonify({'applications': applications}), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/apply-job', methods=['POST'])
+def apply_job():
+    """Apply for a job"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    try:
+        data = request.get_json()
+        job_id = data.get('job_id')
+        
+        if not job_id:
+            return jsonify({'error': 'Job ID is required'}), 400
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if already applied
+        cursor.execute("SELECT id FROM job_applications WHERE user_id=%s AND job_id=%s", 
+                      (session['user_id'], job_id))
+        if cursor.fetchone():
+            return jsonify({'error': 'You have already applied for this job'}), 400
+        
+        # Insert application
+        cursor.execute("""
+            INSERT INTO job_applications (user_id, job_id, cover_letter, status)
+            VALUES (%s, %s, %s, 'Applied')
+        """, (session['user_id'], job_id, data.get('cover_letter', '')))
+        
+        connection.commit()
+        return jsonify({'message': 'Application submitted successfully'}), 201
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/my-applications', methods=['GET'])
+def my_applications():
+    """Get user's job applications"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT ja.*, j.title, j.company, j.location, j.job_type
+            FROM job_applications ja
+            JOIN jobs j ON ja.job_id = j.id
+            WHERE ja.user_id = %s
+            ORDER BY ja.applied_at DESC
+        """, (session['user_id'],))
+        
+        applications = cursor.fetchall()
+        return jsonify({'applications': applications}), 200
+        
+    except Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
 @app.route('/api/test', methods=['GET'])
 def test():

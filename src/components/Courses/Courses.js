@@ -366,7 +366,7 @@ const Courses = () => {
         </EmptyState>
       ) : (
         <CoursesGrid>
-          {courses.map(course => (
+          {courses && courses.map(course => (
             <CourseCard key={course.id}>
               <CourseHeader>
                 <div>
@@ -396,7 +396,7 @@ const Courses = () => {
               </CourseMeta>
 
               <CourseSkills>
-                {course.skills.map((skill, index) => (
+                {course.skills && course.skills.map((skill, index) => (
                   <SkillTag key={index}>{skill}</SkillTag>
                 ))}
               </CourseSkills>

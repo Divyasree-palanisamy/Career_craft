@@ -41,7 +41,7 @@ DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'database': os.getenv('DB_NAME', 'career_platform'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', 'Divya@2004'),
     'port': int(os.getenv('DB_PORT', 3306))
 }
 
@@ -333,11 +333,13 @@ def register():
         email = data.get('email')
         password = data.get('password')
         
+        print(f"Registration attempt: username={username}, email={email}")
+        
         if not all([username, email, password]):
             return jsonify({'error': 'All fields are required'}), 400
         
         # Hash password
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         connection = get_db_connection()
         if not connection:
@@ -386,10 +388,13 @@ def login():
         cursor = connection.cursor(dictionary=True)
         
         # Check admin credentials first
+        print(f"Login attempt: username={username}, password={password}")
+        print(f"Admin check: username=={ADMIN_USERNAME}? {username == ADMIN_USERNAME}, password=={ADMIN_PASSWORD}? {password == ADMIN_PASSWORD}")
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['user_id'] = 'admin'
             session['username'] = username
             session['role'] = 'admin'
+            print("Admin login successful")
             return jsonify({
                 'message': 'Admin login successful',
                 'user': {'id': 'admin', 'username': username, 'role': 'admin'}
@@ -401,8 +406,10 @@ def login():
             (username,)
         )
         user = cursor.fetchone()
+        print(f"User found: {user}")
         
         if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            print("User login successful")
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['role'] = user['role']
@@ -496,9 +503,42 @@ def profile():
         data = request.get_json()
         print(f"Profile update data received: {data}")  # Debug log
         
+        # Handle empty date values
+        if 'date_of_birth' in data and data['date_of_birth'] == '':
+            data['date_of_birth'] = None
+        
+        # Handle empty numeric values
+        if 'graduation_year' in data and data['graduation_year'] == '':
+            data['graduation_year'] = None
+        
+        if 'salary_expectation' in data and data['salary_expectation'] == '':
+            data['salary_expectation'] = None
+        
+        if 'total_experience' in data and data['total_experience'] == '':
+            data['total_experience'] = 0
+        
+        # Handle work_mode enum validation
+        if 'work_mode' in data and data['work_mode'] not in ['Remote', 'On-site', 'Hybrid']:
+            data['work_mode'] = None
+        
+        # Handle gender enum validation
+        if 'gender' in data and data['gender'] not in ['Male', 'Female', 'Other']:
+            data['gender'] = None
+        
+        # Handle batch_semester length validation
+        if 'batch_semester' in data and data['batch_semester']:
+            if len(str(data['batch_semester'])) > 20:
+                data['batch_semester'] = str(data['batch_semester'])[:20]
+        
+        # Remove any datetime fields that might cause issues
+        datetime_fields = ['created_at', 'updated_at', 'savedAt']
+        for field in datetime_fields:
+            if field in data:
+                del data[field]
+        
         # Convert skills lists to JSON strings
         for skill_field in ['technical_skills', 'soft_skills', 'programming_languages', 
-                          'frameworks', 'databases', 'tools']:
+                          'frameworks', 'database_skills', 'tools']:
             if skill_field in data and isinstance(data[skill_field], list):
                 data[skill_field] = json.dumps(data[skill_field])
         

@@ -1,5 +1,22 @@
 CREATE DATABASE career_platform;
 use career_platform;
+
+ALTER TABLE user_profiles
+ADD COLUMN database_skills TEXT AFTER frameworks;
+
+
+
+
+-- Add the missing user_resumes table
+CREATE TABLE IF NOT EXISTS user_resumes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    resume_name VARCHAR(255) NOT NULL,
+    resume_data JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 select * from users;
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
